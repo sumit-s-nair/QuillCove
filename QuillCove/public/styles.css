@@ -3,52 +3,75 @@
   margin: 0;
   box-sizing: border-box;
 }
-html {
+
+html, body {
+  height: 100%;
   font-family: "Montserrat", sans-serif;
+  overflow: hidden;
+  background-color: #1C1C1C;
 }
-body {
-  background: #1C1C1C;
-  color: #fff;
-  padding: 0 16px;
+
+.app-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
 }
 
 header {
   background-color: #4A90E2;
-  margin: auto -16px;
-  padding: 16px 32px;
-  box-shadow: 0 0 10px 0 rgba(0, 0, 0, 0.3);
+  height: 7vh;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
 }
 
 header h1 {
   color: #fff;
-  font-family: "McLaren", cursive;
-  font-weight: 200;
+  font-weight: 700;
+  margin: 0 1rem;
 }
 
 footer {
-  position: absolute;
+  background-color: #1C1C1C;
   text-align: center;
-  bottom: 0;
-  width: 100%;
-  height: 2.5rem;
-}
-
-footer p {
+  height: 7vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: #ccc;
 }
+
+.notes-container {
+  height: 86vh;
+  padding: 2rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); 
+  grid-template-rows: repeat(auto-fill, 250px); 
+  grid-gap: 2rem;
+  overflow-y: auto; 
+  scrollbar-width: none;
+}
+
+.notes-container::-webkit-scrollbar {
+  display: none;
+}
+
 .note {
   background: #4A90E2;
+  color: #eaeaea;
   border-radius: 7px;
-  box-shadow: 0 2px 5px #ccc;
+  box-shadow: 0 2px 5px #4A90E2;
   padding: 10px;
-  width: 240px;
-  margin: 2rem;
-  float: left;
+  width: 90%;
+  height: 240px;
+  flex: 0 1 auto;
 }
+
 .note h1 {
   font-size: 1.1em;
   margin-bottom: 6px;
 }
+
 .note p {
   font-size: 1.1em;
   margin-bottom: 10px;
