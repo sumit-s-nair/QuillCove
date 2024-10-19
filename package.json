@@ -8,10 +8,9 @@
     "postinstall": "npm install --prefix QuillCove && npm run build --prefix QuillCove"
   },
   "dependencies": {
-    "express": "^4.17.1"
+    "express": "^4.21.1"
   },
   "devDependencies": {
     "serve": "^11.3.0"
   }
 }
-
