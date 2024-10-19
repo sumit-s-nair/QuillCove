@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: quill-cove-backend
+    env: node
+    buildCommand: npm install --prefix Backend
+    startCommand: npm run start --prefix Backend
+    plan: free
+    autoDeploy: true
+    envVars:
+      NODE_ENV: production
+
+  - type: web
+    name: quill-cove-frontend
+    env: static
+    buildCommand: npm install --prefix QuillCove && npm run build --prefix QuillCove
+    startCommand: serve -s QuillCove/dist
+    plan: free
+    autoDeploy: true
+    envVars:
+      REACT_APP_API_URL: https://quill-cove-backend.onrender.com/api
