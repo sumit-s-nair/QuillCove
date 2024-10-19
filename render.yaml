@@ -8,6 +8,8 @@ services:
     autoDeploy: true
     envVars:
       NODE_ENV: production
+      MONGODB_URI: ${MONGODB_URI}
+      JWT_SECRET: ${JWT_SECRET}
 
   - type: web
     name: quill-cove-frontend
@@ -17,4 +19,4 @@ services:
     plan: free
     autoDeploy: true
     envVars:
-      REACT_APP_API_URL: https://quill-cove-backend.onrender.com/api
+      REACT_APP_API_URL: ${VITE_API_URL}
