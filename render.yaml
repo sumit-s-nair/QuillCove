@@ -2,7 +2,7 @@ services:
   - type: web
     name: quill-cove-backend
     env: node
-    buildCommand: npm install --prefix Backend
+    buildCommand: npm install --prefix Backend && npm install --prefix QuillCove
     startCommand: npm run start --prefix Backend
     plan: free
     autoDeploy: true
