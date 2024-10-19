@@ -5,7 +5,7 @@
     "start": "node Backend/server.js",
     "build": "cd QuillCove && npm install && npm run build",
     "serve": "serve -s QuillCove/dist",
-    "postinstall": "npm install --prefix QuillCove && npm run build --prefix QuillCove"
+    "postinstall": "npm install --prefix Backend && npm install --prefix QuillCove && npm run build --prefix QuillCove"
   },
   "dependencies": {
     "express": "^4.21.1"

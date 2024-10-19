@@ -19,4 +19,4 @@ services:
     plan: free
     autoDeploy: true
     envVars:
-      REACT_APP_API_URL: ${VITE_API_URL}
+      VITE_API_URL: ${REACT_APP_API_URL}
