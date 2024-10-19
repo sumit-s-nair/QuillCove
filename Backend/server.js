@@ -26,6 +26,13 @@ app.use(
 app.use("/api/users", userRoutes);
 app.use("/api/notes", noteRoutes);
 
+// Serve static files from Vite app
+app.use(express.static(path.join(__dirname, '../QuillCove/dist')));
+
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../QuillCove/dist', 'index.html'));
+});
+
 // Connect to MongoDB
 connectDB();
 
