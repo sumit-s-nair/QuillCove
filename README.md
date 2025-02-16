@@ -1,7 +1,8 @@
-
 # QuillCove
 
-**QuillCove** is a modern notes application that allows users to create, manage, and store notes securely. It features a clean user interface with fast performance, thanks to the integration of a MERN stack backend and React-based frontend.
+(Its a notes app pretty self explainatory but if you really wanna know do read ahead espically if you dont know how to set up a next app now we go to a more formal explaination).
+
+**QuillCove** is a modern notes application that allows users to create, manage, and store notes securely. It features a clean user interface with fast performance, thanks to the integration of Next.js and Firebase.
 
 [Live App](https://quillcove.onrender.com/)
 
@@ -16,19 +17,18 @@
 
 ## Features
 
-- **User Authentication**: Secure login and registration for users.
-- **Note Management**: Add, edit, and delete personal notes.
+- **User Authentication**: Secure login and registration for users using Firebase Authentication.
+- **Note Management**: Add, edit, and delete personal notes stored in Firebase Firestore.
 - **Responsive Design**: Works on mobile and desktop devices.
-- **API Integration**: Interacts with a backend API for data storage and management.
 - **Dark Mode**: Eye-friendly dark mode for note-taking.
 
 ## Tech Stack
 
-- **Frontend**: React, Vite
-- **Backend**: Node.js, Express.js
-- **Database**: MongoDB Atlas
-- **Styling**: Material-UI
-- **Deployment**: Render.com
+- **Frontend**: Next.js
+- **Backend**: Firebase Functions
+- **Database**: Firebase Firestore
+- **Styling**: Tailwind CSS
+- **Deployment**: Vercel
 
 ## Setup and Installation
 
@@ -37,86 +37,68 @@
 Make sure you have the following installed:
 
 - [Node.js](https://nodejs.org/)
-- [MongoDB Atlas](https://www.mongodb.com/cloud/atlas)
-- [Render](https://render.com/)
+- [Firebase CLI](https://firebase.google.com/docs/cli) or set it up in the firebase console and copy the keys
+- [Vercel CLI](https://vercel.com/docs/cli) set this up in the vercel website dont waste time on this
 
 ### Installation
 
 1. Clone the repository:
-   \`\`\`bash
+
+   ```bash
    git clone https://github.com/sumit-s-nair/QuillCove.git
    cd QuillCove
    \`\`\`
 
+   ```
+
 2. Install dependencies for both frontend and backend:
    \`\`\`bash
-   # Install dependencies for frontend
-   cd QuillCove
+
+   # Install dependencies
+
    npm install
 
-   # Install dependencies for backend
-   cd ../Backend
-   npm install
-   \`\`\`
-
-3. Create a `.env` file in the root of the `/Backend` directory and add your environment variables (check the section below for required variables).
-
-4. Run the application locally:
+3. Set up Firebase:
    \`\`\`bash
-   # Start the backend
-   npm run start --prefix Backend
+   firebase login
+   firebase init
 
-   # Start the frontend
-   npm run dev --prefix QuillCove
+4. Create a `.env` file in the root directory and add your environment variables (VERY IMPORTANT as im not sharing my keys with you, did you honestly think im that kind, anyways check the example.env for required variables).
+
+5. Run the application locally:
+   \`\`\`bash
+   # Start the app
+   npm run dev
    \`\`\`
-
-### Environment Variables
-
-Create a `.env` file in the `Backend/` directory and include the following:
-
-\`\`\`
-MONGODB_URI=your_mongodb_connection_string
-JWT_SECRET=your_jwt_secret_key
-\`\`\`
-
-In your frontend `.env` file (`QuillCove/`), add:
-
-\`\`\`
-VITE_API_URL=https://quillcove.onrender.com/api
-\`\`\`
 
 ### Running the Application
 
 Once everything is set up, open your browser and navigate to:
 
-- Frontend: `http://localhost:5173`
-- Backend: `http://localhost:5000`
+- Frontend: `http://localhost:3000`
 
 ## Deployment
 
-QuillCove is deployed on Render. Here’s a simplified structure of the `render.yaml` used for deployment:
+QuillCove is deployed on Vercel. Here’s a simplified structure of the vercel.json used for deployment (idk why your doing it this way but if you are heres the config, just use the vercel website for deployment bro they do it automatically for you): 
 
-\`\`\`yaml
-services:
-  - type: web
-    name: quill-cove-backend
-    env: node
-    buildCommand: npm install --prefix Backend
-    startCommand: npm run start --prefix Backend
-    plan: free
-    envVars:
-      MONGODB_URI: your_mongodb_connection_string
-      JWT_SECRET: your_jwt_secret_key
-
-  - type: web
-    name: quill-cove-frontend
-    env: static
-    buildCommand: npm install --prefix QuillCove && npm run build --prefix QuillCove
-    startCommand: serve -s QuillCove/dist
-    plan: free
-    envVars:
-      VITE_API_URL: https://quillcove.onrender.com/api
-\`\`\`
+\`\`\`json
+{
+  "builds": [
+    {
+      "src": "next.config.js",
+      "use": "@vercel/next"
+    }
+  ],
+  "env": {
+    "NEXT_PUBLIC_FIREBASE_API_KEY": "your_firebase_api_key",
+    "NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN": "your_firebase_auth_domain",
+    "NEXT_PUBLIC_FIREBASE_PROJECT_ID": "your_firebase_project_id",
+    "NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET": "your_firebase_storage_bucket",
+    "NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID": "your_firebase_messaging_sender_id",
+    "NEXT_PUBLIC_FIREBASE_APP_ID": "your_firebase_app_id"
+  }
+}
+  \`\`\`
 
 ## License
 
