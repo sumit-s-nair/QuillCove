@@ -17,5 +17,9 @@
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: "ABeeZee", sans-serif;
+}
+
+main::-webkit-scrollbar {
+  display: none;
 }
