@@ -4,7 +4,7 @@
 
 **QuillCove** is a modern notes application that allows users to create, manage, and store notes securely. It features a clean user interface with fast performance, thanks to the integration of Next.js and Firebase.
 
-[Live App](https://quillcove.onrender.com/)
+[Live App](https://quill-cove.vercel.app/)
 
 ## Table of Contents
 
@@ -21,6 +21,10 @@
 - **Note Management**: Add, edit, and delete personal notes stored in Firebase Firestore.
 - **Responsive Design**: Works on mobile and desktop devices.
 - **Dark Mode**: Eye-friendly dark mode for note-taking.
+- **Search Functionality**: Quickly find notes using the search bar.
+- **Label Management**: Organize notes with custom labels.
+- **Starred Notes**: Mark important notes as starred for quick access.
+- **Spotlight View**: View notes in a spotlight modal for better readability.
 
 ## Tech Stack
 
