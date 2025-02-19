@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, Search, X } from "lucide-react";
+import { Plus, Search, X, LogOut } from "lucide-react";
 import Background from "@/components/Background";
 import Note from "@/components/Note";
 import NoteModal from "@/components/NoteModal";
 import SpotlightNote from "@/components/SpotlightNote";
 import { auth, db } from "@/lib/firebase";
 import { doc, getDoc, setDoc } from "firebase/firestore";
+import { signOut } from "firebase/auth";
 import { useRouter } from "next/navigation";
 import { v4 as uuidv4 } from "uuid";
 
@@ -35,19 +36,24 @@ export default function Home() {
 
   useEffect(() => {
     const fetchUserData = async () => {
-      const user = auth.currentUser;
-      if (user) {
-        const userDoc = doc(db, "users", user.uid);
-        const userSnap = await getDoc(userDoc);
-        if (userSnap.exists()) {
-          const userData = userSnap.data();
-          setNotes(userData.notes || []);
-          setAvailableLabels(userData.labels || []);
+      try {
+        const user = auth.currentUser;
+        if (user) {
+          const userDoc = doc(db, "users", user.uid);
+          const userSnap = await getDoc(userDoc);
+          if (userSnap.exists()) {
+            const userData = userSnap.data();
+            setNotes(userData.notes || []);
+            setAvailableLabels(userData.labels || []);
+          }
+        } else {
+          router.push("/auth");
         }
-      } else {
-        router.push("/auth");
+      } catch (error) {
+        console.error("Error fetching user data: ", error);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
     fetchUserData();
@@ -176,6 +182,15 @@ export default function Home() {
       note.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      router.push("/auth");
+    } catch (error) {
+      console.error("Error signing out: ", error);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -276,6 +291,12 @@ export default function Home() {
             </>
           )}
         </div>
+        <button
+          onClick={handleLogout}
+          className="fixed bottom-36 right-16 p-4 bg-red-600/40 text-white rounded-full shadow-lg hover:bg-red-700/40 transition-colors z-50"
+        >
+          <LogOut size={24} />
+        </button>
         <button
           onClick={openModalForNewNote}
           className="fixed bottom-20 right-16 p-4 bg-white/40 text-white rounded-full shadow-lg hover:bg-white/50 transition-colors z-50"
