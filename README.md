@@ -11,7 +11,6 @@
 - [Features](#features)
 - [Tech Stack](#tech-stack)
 - [Setup and Installation](#setup-and-installation)
-- [Environment Variables](#environment-variables)
 - [Deployment](#deployment)
 - [License](#license)
 
@@ -51,29 +50,27 @@ Make sure you have the following installed:
    ```bash
    git clone https://github.com/sumit-s-nair/QuillCove.git
    cd QuillCove
-   \`\`\`
 
    ```
 
 2. Install dependencies for both frontend and backend:
-   \`\`\`bash
+   ```bash
 
    # Install dependencies
 
    npm install
 
 3. Set up Firebase:
-   \`\`\`bash
+   ```bash
    firebase login
    firebase init
 
 4. Create a `.env` file in the root directory and add your environment variables (VERY IMPORTANT as im not sharing my keys with you, did you honestly think im that kind, anyways check the example.env for required variables).
 
 5. Run the application locally:
-   \`\`\`bash
+   ```bash
    # Start the app
    npm run dev
-   \`\`\`
 
 ### Running the Application
 
@@ -85,7 +82,7 @@ Once everything is set up, open your browser and navigate to:
 
 QuillCove is deployed on Vercel. Here’s a simplified structure of the vercel.json used for deployment (idk why your doing it this way but if you are heres the config, just use the vercel website for deployment bro they do it automatically for you): 
 
-\`\`\`json
+```json
 {
   "builds": [
     {
@@ -102,7 +99,7 @@ QuillCove is deployed on Vercel. Here’s a simplified structure of the vercel.j
     "NEXT_PUBLIC_FIREBASE_APP_ID": "your_firebase_app_id"
   }
 }
-  \`\`\`
+```
 
 ## License
 
