@@ -1,4 +1,5 @@
 import React, { memo } from "react";
+import { X } from "lucide-react";
 
 interface SpotlightNoteProps {
   note: {
@@ -13,24 +14,54 @@ const SpotlightNote: React.FC<SpotlightNoteProps> = memo(({ note, closeSpotlight
   if (!note) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-30">
-      <div className="p-8 rounded-lg shadow-lg bg-white/20 w-full max-w-lg max-h-[80vh] overflow-y-auto">
-        <h2 className="text-2xl font-bold mb-4 max-w-md">{note.title}</h2>
-        <p className="text-lg mb-4 break-words">{note.content}</p>
-        <div className="flex flex-wrap mb-4">
-          {note.labels.map((label, idx) => (
-            <span
-              key={idx}
-              className="bg-gray-700 text-white text-xs px-2 py-1 rounded mr-2 mb-2"
-            >
-              {label}
-            </span>
-          ))}
-        </div>
-        <div className="flex justify-end space-x-2">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+      <div className="bg-gradient-to-br from-gray-800 to-gray-900 border border-gray-700 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between p-6 border-b border-gray-700">
+          <h2 className="text-2xl font-bold text-white line-clamp-2 pr-4">
+            {note.title}
+          </h2>
           <button
             onClick={closeSpotlight}
-            className="p-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+            className="p-2 rounded-lg hover:bg-gray-700/50 text-gray-400 hover:text-white transition-colors flex-shrink-0"
+          >
+            <X size={24} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="p-6 space-y-6">
+          {/* Content */}
+          <div>
+            <h3 className="text-sm font-medium text-gray-400 mb-3">Content</h3>
+            <p className="text-lg text-gray-200 whitespace-pre-wrap leading-relaxed">
+              {note.content}
+            </p>
+          </div>
+
+          {/* Labels */}
+          {note.labels.length > 0 && (
+            <div>
+              <h3 className="text-sm font-medium text-gray-400 mb-3">Labels</h3>
+              <div className="flex flex-wrap gap-2">
+                {note.labels.map((label, idx) => (
+                  <span
+                    key={idx}
+                    className="px-3 py-1.5 bg-purple-500/20 text-purple-300 text-sm rounded-full border border-purple-500/30"
+                  >
+                    {label}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex justify-end p-6 border-t border-gray-700">
+          <button
+            onClick={closeSpotlight}
+            className="px-6 py-2.5 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors font-medium"
           >
             Close
           </button>
