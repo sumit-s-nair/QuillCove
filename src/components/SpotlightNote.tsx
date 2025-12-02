@@ -1,4 +1,4 @@
-import React from "react";
+import React, { memo } from "react";
 
 interface SpotlightNoteProps {
   note: {
@@ -9,7 +9,7 @@ interface SpotlightNoteProps {
   closeSpotlight: () => void;
 }
 
-const SpotlightNote: React.FC<SpotlightNoteProps> = ({ note, closeSpotlight }) => {
+const SpotlightNote: React.FC<SpotlightNoteProps> = memo(({ note, closeSpotlight }) => {
   if (!note) return null;
 
   return (
@@ -38,6 +38,8 @@ const SpotlightNote: React.FC<SpotlightNoteProps> = ({ note, closeSpotlight }) =
       </div>
     </div>
   );
-};
+});
+
+SpotlightNote.displayName = 'SpotlightNote';
 
 export default SpotlightNote;

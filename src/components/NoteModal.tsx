@@ -1,4 +1,4 @@
-import React from "react";
+import React, { memo } from "react";
 
 interface NoteModalProps {
   isOpen: boolean;
@@ -14,7 +14,7 @@ interface NoteModalProps {
   closeModal: () => void;
 }
 
-const NoteModal: React.FC<NoteModalProps> = ({
+const NoteModal: React.FC<NoteModalProps> = memo(({
   isOpen,
   isEditing,
   newTitle,
@@ -103,6 +103,8 @@ const NoteModal: React.FC<NoteModalProps> = ({
       </div>
     </div>
   );
-};
+});
+
+NoteModal.displayName = 'NoteModal';
 
 export default NoteModal;

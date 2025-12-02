@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Plus, Search, X, LogOut } from "lucide-react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { Plus, Search, LogOut, Menu } from "lucide-react";
 import Background from "@/components/Background";
-import Note from "@/components/Note";
+import ModernNote from "@/components/ModernNote";
 import NoteModal from "@/components/NoteModal";
 import SpotlightNote from "@/components/SpotlightNote";
+import FilterTabs from "@/components/FilterTabs";
+import LoadingSkeleton from "@/components/LoadingSkeleton";
 import { auth, db } from "@/lib/firebase";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { signOut } from "firebase/auth";
@@ -31,14 +33,15 @@ export default function Home() {
   const [spotlightNote, setSpotlightNote] = useState<NoteType | null>(null);
   const [availableLabels, setAvailableLabels] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [activeFilter, setActiveFilter] = useState("All Notes");
   const [loading, setLoading] = useState(true);
+  const [showSidebar, setShowSidebar] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
-    const fetchUserData = async () => {
-      try {
-        const user = auth.currentUser;
-        if (user) {
+    const unsubscribe = auth.onAuthStateChanged(async (user) => {
+      if (user) {
+        try {
           const userDoc = doc(db, "users", user.uid);
           const userSnap = await getDoc(userDoc);
           if (userSnap.exists()) {
@@ -46,20 +49,20 @@ export default function Home() {
             setNotes(userData.notes || []);
             setAvailableLabels(userData.labels || []);
           }
-        } else {
-          router.push("/auth");
+        } catch (error) {
+          console.error("Error fetching user data: ", error);
+        } finally {
+          setLoading(false);
         }
-      } catch (error) {
-        console.error("Error fetching user data: ", error);
-      } finally {
-        setLoading(false);
+      } else {
+        router.push("/auth");
       }
-    };
+    });
 
-    fetchUserData();
+    return () => unsubscribe();
   }, [router]);
 
-  const saveUserData = async (updatedNotes: NoteType[], updatedLabels: string[]) => {
+  const saveUserData = useCallback(async (updatedNotes: NoteType[], updatedLabels: string[]) => {
     const user = auth.currentUser;
     if (user) {
       const userDoc = doc(db, "users", user.uid);
@@ -69,17 +72,17 @@ export default function Home() {
         { merge: true }
       );
     }
-  };
+  }, []);
 
-  const openModalForNewNote = () => {
+  const openModalForNewNote = useCallback(() => {
     setNewTitle("");
     setNewContent("");
     setNewLabels([]);
     setIsEditing(false);
     setIsModalOpen(true);
-  };
+  }, []);
 
-  const addNote = async () => {
+  const addNote = useCallback(async () => {
     if (newTitle.trim() && newContent.trim()) {
       let updatedNotes;
       if (isEditing && editId !== null) {
@@ -112,15 +115,15 @@ export default function Home() {
       setNewContent("");
       setNewLabels([]);
     }
-  };
+  }, [newTitle, newContent, newLabels, isEditing, editId, notes, availableLabels, saveUserData]);
 
-  const deleteNote = async (id: string) => {
+  const deleteNote = useCallback(async (id: string) => {
     const updatedNotes = notes.filter((note) => note.id !== id);
     setNotes(updatedNotes);
     await saveUserData(updatedNotes, availableLabels);
-  };
+  }, [notes, availableLabels, saveUserData]);
 
-  const editNote = (id: string) => {
+  const editNote = useCallback((id: string) => {
     const note = notes.find((note) => note.id === id);
     if (note) {
       setNewTitle(note.title);
@@ -130,13 +133,13 @@ export default function Home() {
       setEditId(id);
       setIsModalOpen(true);
     }
-  };
+  }, [notes]);
 
-  const viewNote = (note: NoteType) => {
+  const viewNote = useCallback((note: NoteType) => {
     setSpotlightNote(note);
-  };
+  }, []);
 
-  const toggleStar = async (id: string) => {
+  const toggleStar = useCallback(async (id: string) => {
     const updatedNotes = notes.map((note) =>
       note.id === id ? { ...note, starred: !note.starred } : note
     );
@@ -144,9 +147,9 @@ export default function Home() {
       updatedNotes.sort((a, b) => Number(b.starred) - Number(a.starred))
     );
     await saveUserData(updatedNotes, availableLabels);
-  };
+  }, [notes, availableLabels, saveUserData]);
 
-  const addLabel = async (label: string) => {
+  const addLabel = useCallback(async (label: string) => {
     let updatedLabels = availableLabels;
     if (!availableLabels.includes(label)) {
       updatedLabels = [...availableLabels, label];
@@ -156,9 +159,9 @@ export default function Home() {
       setNewLabels([...newLabels, label]);
     }
     await saveUserData(notes, updatedLabels);
-  };
+  }, [availableLabels, newLabels, notes, saveUserData]);
 
-  const deleteLabel = async (label: string) => {
+  const deleteLabel = useCallback(async (label: string) => {
     const updatedLabels = availableLabels.filter((l) => l !== label);
     const updatedNotes = notes.map((note) => {
       if (note.labels.includes(label)) {
@@ -169,147 +172,143 @@ export default function Home() {
     setAvailableLabels(updatedLabels);
     setNotes(updatedNotes);
     await saveUserData(updatedNotes, updatedLabels);
-  };
+  }, [availableLabels, notes, saveUserData]);
 
-  const getNotesByLabel = (label: string) => {
-    return notes.filter((note) => note.labels.includes(label));
-  };
-
-  const filteredNotes = notes.filter(
-    (note) =>
-      note &&
-      note.title &&
-      note.title.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const handleLogout = async () => {
+  const handleLogout = useCallback(async () => {
     try {
       await signOut(auth);
       router.push("/auth");
     } catch (error) {
       console.error("Error signing out: ", error);
     }
-  };
+  }, [router]);
+
+  // Filtered notes based on search and active filter
+  const filteredNotes = useMemo(() => {
+    let filtered = notes.filter(
+      (note) =>
+        note &&
+        note.title &&
+        (note.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+         note.content.toLowerCase().includes(searchQuery.toLowerCase()))
+    );
+
+    if (activeFilter === "Starred") {
+      filtered = filtered.filter((note) => note.starred);
+    } else if (activeFilter !== "All Notes") {
+      filtered = filtered.filter((note) => note.labels.includes(activeFilter));
+    }
+
+    return filtered;
+  }, [notes, searchQuery, activeFilter]);
+
+  const starredCount = useMemo(() => notes.filter(n => n.starred).length, [notes]);
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-white text-2xl">Loading...</div>
+      <div className="relative min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-black">
+        <Background />
+        <LoadingSkeleton />
       </div>
     );
   }
 
   return (
-    <div className="relative min-h-screen grid grid-rows-[60px_100px_auto_60px] max-h-screen p-4">
+    <div className="relative min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-black">
       <Background />
-      <header>
-        <div className="h-[60px] bg-black/10 backdrop-blur-md text-center text-white text-4xl font-bold z-10 max-w-6xl mx-auto rounded-lg">
-          <h1 className="pt-2">QuillCove</h1>
-        </div>
-      </header>
-      <div className="relative h-[100px] text-2xl font-bold text-white mb-4 text-center p-4 z-10 max-w-6xl mx-auto rounded-lg w-full">
-        Welcome to QuillCove
-        <div className="absolute bottom-1 right-4">
-          <div className="relative">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="p-2 rounded-lg border border-gray-300 text-sm bg-transparent text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
-              placeholder="Search notes..."
-            />
-            <Search className="absolute top-2 right-2 text-white" size={20} />
+      
+      {/* Header */}
+      <header className="sticky top-0 z-40 backdrop-blur-xl bg-gray-900/50 border-b border-gray-800/50">
+        <div className="max-w-7xl mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => setShowSidebar(!showSidebar)}
+                className="lg:hidden p-2 rounded-lg hover:bg-gray-800/50 transition-colors"
+              >
+                <Menu size={24} className="text-gray-300" />
+              </button>
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+                QuillCove
+              </h1>
+            </div>
+
+            <div className="flex items-center gap-3">
+              {/* Search */}
+              <div className="relative">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-64 pl-10 pr-4 py-2 bg-gray-800/50 border border-gray-700/50 rounded-full text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent transition-all"
+                  placeholder="Search notes..."
+                />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+              </div>
+
+              {/* Logout */}
+              <button
+                onClick={handleLogout}
+                className="p-2 rounded-full hover:bg-red-500/20 text-gray-400 hover:text-red-400 transition-colors"
+                title="Logout"
+              >
+                <LogOut size={20} />
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-      <main className="overflow-y-auto p-8 max-h-[calc(100vh-250px)] z-10">
-        <div className="w-full max-w-4xl mx-auto">
-          {notes.length === 0 ? (
-            <div className="text-white text-center">
-              Click on the <Plus size={24} className="inline" /> icon to create
-              your first note.
-            </div>
-          ) : (
-            <>
-              <h2 className="text-xl font-bold text-white mb-4">
-                Starred Notes
-              </h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-                {filteredNotes
-                  .filter((note) => note.starred)
-                  .map((note) => (
-                    <Note
-                      key={note.id}
-                      note={note}
-                      editNote={editNote}
-                      deleteNote={deleteNote}
-                      toggleStar={toggleStar}
-                      viewNote={viewNote}
-                    />
-                  ))}
-              </div>
-              {availableLabels.map((label, idx) => (
-                <div key={idx}>
-                  <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-xl font-bold text-white">{label}</h2>
-                    <button
-                      onClick={() => deleteLabel(label)}
-                      className="text-white bg-red-600 p-1 rounded-full hover:bg-red-700 transition-colors"
-                    >
-                      <X size={16} />
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-                    {getNotesByLabel(label).map((note) => (
-                      <Note
-                        key={note.id}
-                        note={note}
-                        editNote={editNote}
-                        deleteNote={deleteNote}
-                        toggleStar={toggleStar}
-                        viewNote={viewNote}
-                      />
-                    ))}
-                  </div>
-                </div>
-              ))}
-              <h2 className="text-xl font-bold text-white mb-4">Notes</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {filteredNotes
-                  .filter((note) => !note.starred && note.labels.length === 0)
-                  .map((note) => (
-                    <Note
-                      key={note.id}
-                      note={note}
-                      editNote={editNote}
-                      deleteNote={deleteNote}
-                      toggleStar={toggleStar}
-                      viewNote={viewNote}
-                    />
-                  ))}
-              </div>
-            </>
-          )}
-        </div>
-        <button
-          onClick={handleLogout}
-          className="fixed bottom-36 right-16 p-4 bg-red-600/40 text-white rounded-full shadow-lg hover:bg-red-700/40 transition-colors z-50"
-        >
-          <LogOut size={24} />
-        </button>
-        <button
-          onClick={openModalForNewNote}
-          className="fixed bottom-20 right-16 p-4 bg-white/40 text-white rounded-full shadow-lg hover:bg-white/50 transition-colors z-50"
-        >
-          <Plus size={24} />
-        </button>
-      </main>
-      <footer>
-        <div className="h-[60px] bg-black/10 backdrop-blur-md text-center text-white font-bold z-10 max-w-6xl mx-auto rounded-lg">
-          <p className="pt-4">© 2025 QuillCove. All rights reserved.</p>
-        </div>
-      </footer>
+      </header>
 
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto px-6 py-8">
+        {/* Filter Tabs */}
+        <div className="mb-8">
+          <FilterTabs
+            activeFilter={activeFilter}
+            setActiveFilter={setActiveFilter}
+            availableLabels={availableLabels}
+            noteCount={notes.length}
+            starredCount={starredCount}
+          />
+        </div>
+
+        {/* Notes Grid */}
+        {filteredNotes.length === 0 ? (
+          <div className="text-center py-20">
+            <p className="text-gray-400 text-lg mb-4">
+              {searchQuery ? "No notes found" : "No notes yet"}
+            </p>
+            {!searchQuery && (
+              <p className="text-gray-500 text-sm">
+                Click the + button to create your first note
+              </p>
+            )}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 animate-fade-in">
+            {filteredNotes.map((note) => (
+              <ModernNote
+                key={note.id}
+                note={note}
+                editNote={editNote}
+                deleteNote={deleteNote}
+                toggleStar={toggleStar}
+                viewNote={viewNote}
+              />
+            ))}
+          </div>
+        )}
+      </main>
+
+      {/* Floating Action Button */}
+      <button
+        onClick={openModalForNewNote}
+        className="fixed bottom-8 right-8 p-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-full shadow-2xl hover:shadow-purple-500/50 hover:scale-110 transition-all duration-300 z-50"
+      >
+        <Plus size={28} />
+      </button>
+
+      {/* Modals */}
       <NoteModal
         isOpen={isModalOpen}
         isEditing={isEditing}
