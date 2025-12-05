@@ -74,7 +74,7 @@ export default function Login() {
         {error && <p className="text-red-500 mb-4 text-center">{error}</p>}
         <button
           onClick={handleGoogleSignIn}
-          className="w-full p-2 mb-4 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center justify-center"
+          className="w-full p-2 mb-4 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors flex items-center justify-center"
         >
           <FaGoogle size={20} className="mr-2" />
           Sign in with Google

@@ -57,7 +57,7 @@ const NoteModal: React.FC<NoteModalProps> = memo(({
               type="text"
               value={newTitle}
               onChange={(e) => setNewTitle(e.target.value)}
-              className="w-full px-4 py-3 bg-gray-900/50 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+              className="w-full px-4 py-3 bg-gray-900/50 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all"
               placeholder="Enter note title..."
               autoFocus
             />
@@ -71,7 +71,7 @@ const NoteModal: React.FC<NoteModalProps> = memo(({
             <textarea
               value={newContent}
               onChange={(e) => setNewContent(e.target.value)}
-              className="w-full px-4 py-3 bg-gray-900/50 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all resize-none"
+              className="w-full px-4 py-3 bg-gray-900/50 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all resize-none"
               placeholder="Write your note content..."
               rows={8}
             />
@@ -86,7 +86,7 @@ const NoteModal: React.FC<NoteModalProps> = memo(({
               {newLabels.map((label, idx) => (
                 <span
                   key={idx}
-                  className="px-3 py-1.5 bg-purple-500/20 text-purple-300 text-sm rounded-full border border-purple-500/30"
+                  className="px-3 py-1.5 bg-teal-500/20 text-teal-300 text-sm rounded-full border border-teal-500/30"
                 >
                   {label}
                 </span>
@@ -94,7 +94,7 @@ const NoteModal: React.FC<NoteModalProps> = memo(({
             </div>
             
             <select
-              className="w-full px-4 py-3 bg-gray-900/50 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+              className="w-full px-4 py-3 bg-gray-900/50 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all"
               onChange={(e) => {
                 if (e.target.value) {
                   addLabel(e.target.value);
@@ -115,7 +115,7 @@ const NoteModal: React.FC<NoteModalProps> = memo(({
 
             <input
               type="text"
-              className="w-full mt-2 px-4 py-3 bg-gray-900/50 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+              className="w-full mt-2 px-4 py-3 bg-gray-900/50 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all"
               placeholder="Or create a new label (press Enter)"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && e.currentTarget.value.trim()) {
@@ -137,7 +137,7 @@ const NoteModal: React.FC<NoteModalProps> = memo(({
           </button>
           <button
             onClick={addNote}
-            className="px-6 py-2.5 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:shadow-lg hover:shadow-purple-500/50 transition-all font-medium"
+            className="px-6 py-2.5 bg-gradient-to-r from-teal-500 to-cyan-500 text-white rounded-lg hover:shadow-lg hover:shadow-teal-500/50 transition-all font-medium"
           >
             {isEditing ? "Update Note" : "Create Note"}
           </button>

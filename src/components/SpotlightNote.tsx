@@ -47,7 +47,7 @@ const SpotlightNote: React.FC<SpotlightNoteProps> = memo(({ note, closeSpotlight
                 {note.labels.map((label, idx) => (
                   <span
                     key={idx}
-                    className="px-3 py-1.5 bg-purple-500/20 text-purple-300 text-sm rounded-full border border-purple-500/30"
+                    className="px-3 py-1.5 bg-teal-500/20 text-teal-300 text-sm rounded-full border border-teal-500/30"
                   >
                     {label}
                   </span>

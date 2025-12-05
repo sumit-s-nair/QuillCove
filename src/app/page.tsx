@@ -1,42 +1,60 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { Plus, Search, LogOut, Menu } from "lucide-react";
+import { Plus, Search, LogOut, Menu, Download, Archive } from "lucide-react";
 import Background from "@/components/Background";
 import ModernNote from "@/components/ModernNote";
 import NoteModal from "@/components/NoteModal";
 import SpotlightNote from "@/components/SpotlightNote";
 import FilterTabs from "@/components/FilterTabs";
 import LoadingSkeleton from "@/components/LoadingSkeleton";
+import ThemeToggle from "@/components/ThemeToggle";
+import BulkActionsBar from "@/components/BulkActionsBar";
+import ExportImportModal from "@/components/ExportImportModal";
+import ToastContainer from "@/components/ToastContainer";
+import KeyboardShortcutsModal from "@/components/KeyboardShortcutsModal";
 import { auth, db } from "@/lib/firebase";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { signOut } from "firebase/auth";
 import { useRouter } from "next/navigation";
 import { v4 as uuidv4 } from "uuid";
-
-interface NoteType {
-  id: string;
-  title: string;
-  content: string;
-  starred: boolean;
-  labels: string[];
-}
+import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
+import { useToast } from "@/hooks/useToast";
+import { useTheme } from "@/contexts/ThemeContext";
+import type { Note } from "@/types/note";
+import { exportNotes, importNotes } from "@/utils/export";
 
 export default function Home() {
-  const [notes, setNotes] = useState<NoteType[]>([]);
+  const [notes, setNotes] = useState<Note[]>([]);
   const [newTitle, setNewTitle] = useState("");
   const [newContent, setNewContent] = useState("");
   const [newLabels, setNewLabels] = useState<string[]>([]);
+  const [newChecklist, setNewChecklist] = useState<Array<{ id: string; text: string; completed: boolean }>>([]);
   const [isEditing, setIsEditing] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [spotlightNote, setSpotlightNote] = useState<NoteType | null>(null);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [spotlightNote, setSpotlightNote] = useState<Note | null>(null);
   const [availableLabels, setAvailableLabels] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState("All Notes");
   const [loading, setLoading] = useState(true);
   const [showSidebar, setShowSidebar] = useState(false);
+  const [selectedNotes, setSelectedNotes] = useState<Set<string>>(new Set());
+  const [showArchived, setShowArchived] = useState(false);
+  const [showHelpModal, setShowHelpModal] = useState(false);
   const router = useRouter();
+  const { showToast, toasts, hideToast } = useToast();
+  const { toggleTheme } = useTheme();
+
+  const openModalForNewNote = useCallback(() => {
+    setNewTitle("");
+    setNewContent("");
+    setNewLabels([]);
+    setNewChecklist([]);
+    setIsEditing(false);
+    setIsModalOpen(true);
+  }, []);
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (user) => {
@@ -46,11 +64,21 @@ export default function Home() {
           const userSnap = await getDoc(userDoc);
           if (userSnap.exists()) {
             const userData = userSnap.data();
-            setNotes(userData.notes || []);
+            // Normalize old notes to have new fields
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const normalizedNotes = (userData.notes || []).map((note: any) => ({
+              ...note,
+              checklist: note.checklist || [],
+              archived: note.archived || false,
+              createdAt: note.createdAt || Date.now(),
+              updatedAt: note.updatedAt || Date.now(),
+            }));
+            setNotes(normalizedNotes);
             setAvailableLabels(userData.labels || []);
           }
         } catch (error) {
           console.error("Error fetching user data: ", error);
+          showToast("Failed to load notes", "error");
         } finally {
           setLoading(false);
         }
@@ -60,9 +88,32 @@ export default function Home() {
     });
 
     return () => unsubscribe();
-  }, [router]);
+  }, [router, showToast]);
 
-  const saveUserData = useCallback(async (updatedNotes: NoteType[], updatedLabels: string[]) => {
+  // Keyboard shortcuts
+  useKeyboardShortcuts([
+    { key: 'm', ctrl: true, callback: openModalForNewNote },
+    { key: 'k', ctrl: true, callback: () => document.querySelector<HTMLInputElement>('input[placeholder="Search notes..."]')?.focus() },
+    { key: 'Escape', callback: () => {
+      setIsModalOpen(false);
+      setSpotlightNote(null);
+      setIsExportModalOpen(false);
+      setShowHelpModal(false);
+      setSelectedNotes(new Set());
+    }},
+    { key: 'a', ctrl: true, callback: () => {
+      const filtered = notes.filter(n => !n.archived);
+      if (filtered.length > 0) {
+        setSelectedNotes(new Set(filtered.map(n => n.id)));
+        showToast("All notes selected", "info");
+      }
+    }},
+    { key: 'e', ctrl: true, callback: () => setIsExportModalOpen(true) },
+    { key: '/', ctrl: true, callback: toggleTheme },
+    { key: '?', callback: () => setShowHelpModal(true) },
+  ]);
+
+  const saveUserData = useCallback(async (updatedNotes: Note[], updatedLabels: string[]) => {
     const user = auth.currentUser;
     if (user) {
       const userDoc = doc(db, "users", user.uid);
@@ -72,14 +123,6 @@ export default function Home() {
         { merge: true }
       );
     }
-  }, []);
-
-  const openModalForNewNote = useCallback(() => {
-    setNewTitle("");
-    setNewContent("");
-    setNewLabels([]);
-    setIsEditing(false);
-    setIsModalOpen(true);
   }, []);
 
   const addNote = useCallback(async () => {
@@ -99,12 +142,16 @@ export default function Home() {
         setIsEditing(false);
         setEditId(null);
       } else {
-        const newNote: NoteType = {
+        const newNote: Note = {
           id: uuidv4(),
           title: newTitle,
           content: newContent,
           starred: false,
           labels: newLabels,
+          checklist: newChecklist,
+          archived: false,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
         };
         updatedNotes = [...notes, newNote];
       }
@@ -115,7 +162,7 @@ export default function Home() {
       setNewContent("");
       setNewLabels([]);
     }
-  }, [newTitle, newContent, newLabels, isEditing, editId, notes, availableLabels, saveUserData]);
+  }, [newTitle, newContent, newLabels, newChecklist, isEditing, editId, notes, availableLabels, saveUserData]);
 
   const deleteNote = useCallback(async (id: string) => {
     const updatedNotes = notes.filter((note) => note.id !== id);
@@ -135,7 +182,7 @@ export default function Home() {
     }
   }, [notes]);
 
-  const viewNote = useCallback((note: NoteType) => {
+  const viewNote = useCallback((note: Note) => {
     setSpotlightNote(note);
   }, []);
 
@@ -161,11 +208,12 @@ export default function Home() {
     await saveUserData(notes, updatedLabels);
   }, [availableLabels, newLabels, notes, saveUserData]);
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const deleteLabel = useCallback(async (label: string) => {
     const updatedLabels = availableLabels.filter((l) => l !== label);
     const updatedNotes = notes.map((note) => {
       if (note.labels.includes(label)) {
-        return { ...note, labels: note.labels.filter((l) => l !== label) };
+        return { ...note, labels: note.labels.filter((l: string) => l !== label) };
       }
       return note;
     });
@@ -183,6 +231,98 @@ export default function Home() {
     }
   }, [router]);
 
+  // Archive/Unarchive note
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const toggleArchive = useCallback(async (id: string) => {
+    const updatedNotes = notes.map((note) =>
+      note.id === id ? { ...note, archived: !note.archived } : note
+    );
+    setNotes(updatedNotes);
+    await saveUserData(updatedNotes, availableLabels);
+    const note = updatedNotes.find(n => n.id === id);
+    showToast(note?.archived ? "Note archived" : "Note restored", "success");
+  }, [notes, availableLabels, saveUserData, showToast]);
+
+  // Handle export
+  const handleExport = useCallback((format: 'json' | 'markdown') => {
+    try {
+      exportNotes(notes, format);
+      showToast(`Notes exported as ${format.toUpperCase()}`, "success");
+      setIsExportModalOpen(false);
+    } catch {
+      showToast("Failed to export notes", "error");
+    }
+  }, [notes, showToast]);
+
+  // Separate export handlers for modal
+  const handleExportJSON = useCallback(() => handleExport('json'), [handleExport]);
+  const handleExportMarkdown = useCallback(() => handleExport('markdown'), [handleExport]);
+
+  // Handle import
+  const handleImport = useCallback(async (file: File) => {
+    try {
+      const importedNotes = await importNotes(file);
+      const updatedNotes = [...notes, ...importedNotes];
+      setNotes(updatedNotes);
+      await saveUserData(updatedNotes, availableLabels);
+      showToast(`Imported ${importedNotes.length} notes`, "success");
+      setIsExportModalOpen(false);
+    } catch {
+      showToast("Failed to import notes", "error");
+    }
+  }, [notes, availableLabels, saveUserData, showToast]);
+
+  // Bulk operations
+  const handleBulkDelete = useCallback(async () => {
+    const updatedNotes = notes.filter(n => !selectedNotes.has(n.id));
+    setNotes(updatedNotes);
+    await saveUserData(updatedNotes, availableLabels);
+    showToast(`Deleted ${selectedNotes.size} notes`, "success");
+    setSelectedNotes(new Set());
+  }, [notes, selectedNotes, availableLabels, saveUserData, showToast]);
+
+  const handleBulkArchive = useCallback(async () => {
+    const updatedNotes = notes.map(n => 
+      selectedNotes.has(n.id) ? { ...n, archived: true } : n
+    );
+    setNotes(updatedNotes);
+    await saveUserData(updatedNotes, availableLabels);
+    showToast(`Archived ${selectedNotes.size} notes`, "success");
+    setSelectedNotes(new Set());
+  }, [notes, selectedNotes, availableLabels, saveUserData, showToast]);
+
+  const handleBulkStar = useCallback(async () => {
+    const updatedNotes = notes.map(n => 
+      selectedNotes.has(n.id) ? { ...n, starred: true } : n
+    );
+    setNotes(updatedNotes);
+    await saveUserData(updatedNotes, availableLabels);
+    showToast(`Starred ${selectedNotes.size} notes`, "success");
+    setSelectedNotes(new Set());
+  }, [notes, selectedNotes, availableLabels, saveUserData, showToast]);
+
+  const handleBulkExport = useCallback(() => {
+    const selectedNotesList = notes.filter(n => selectedNotes.has(n.id));
+    try {
+      exportNotes(selectedNotesList, 'json');
+      showToast(`Exported ${selectedNotes.size} notes`, "success");
+    } catch {
+      showToast("Failed to export notes", "error");
+    }
+  }, [notes, selectedNotes, showToast]);
+
+  const toggleNoteSelection = useCallback((id: string) => {
+    setSelectedNotes(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  }, []);
+
   // Filtered notes based on search and active filter
   const filteredNotes = useMemo(() => {
     let filtered = notes.filter(
@@ -190,7 +330,8 @@ export default function Home() {
         note &&
         note.title &&
         (note.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-         note.content.toLowerCase().includes(searchQuery.toLowerCase()))
+         note.content.toLowerCase().includes(searchQuery.toLowerCase())) &&
+        note.archived === showArchived
     );
 
     if (activeFilter === "Starred") {
@@ -200,13 +341,13 @@ export default function Home() {
     }
 
     return filtered;
-  }, [notes, searchQuery, activeFilter]);
+  }, [notes, searchQuery, activeFilter, showArchived]);
 
-  const starredCount = useMemo(() => notes.filter(n => n.starred).length, [notes]);
+  const starredCount = useMemo(() => notes.filter(n => n.starred && !n.archived).length, [notes]);
 
   if (loading) {
     return (
-      <div className="relative min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-black">
+      <div className="relative min-h-screen bg-gray-50 dark:bg-gray-950">
         <Background />
         <LoadingSkeleton />
       </div>
@@ -214,36 +355,65 @@ export default function Home() {
   }
 
   return (
-    <div className="relative min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-black">
+    <div className="relative min-h-screen bg-gray-50 dark:bg-gray-950">
       <Background />
       
       {/* Header */}
-      <header className="sticky top-0 z-40 backdrop-blur-xl bg-gray-900/50 border-b border-gray-800/50">
+      <header className="sticky top-0 z-40 backdrop-blur-xl bg-white/90 dark:bg-black/90 border-b border-gray-200 dark:border-teal-900/50">
         <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <button
                 onClick={() => setShowSidebar(!showSidebar)}
-                className="lg:hidden p-2 rounded-lg hover:bg-gray-800/50 transition-colors"
+                className="lg:hidden p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-800/50 transition-colors"
               >
-                <Menu size={24} className="text-gray-300" />
+                <Menu size={24} className="text-gray-700 dark:text-gray-300" />
               </button>
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-teal-400 to-cyan-400 dark:from-teal-500 dark:to-cyan-500 bg-clip-text text-transparent">
                 QuillCove
               </h1>
             </div>
 
             <div className="flex items-center gap-3">
+              {/* Archive Toggle */}
+              <button
+                onClick={() => {
+                  setShowArchived(!showArchived);
+                  showToast(showArchived ? "Showing active notes" : "Showing archived notes", "info");
+                }}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                  showArchived 
+                    ? "bg-teal-500/20 text-teal-600 dark:text-teal-400" 
+                    : "bg-gray-200 dark:bg-gray-800/50 text-gray-700 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-700/50"
+                }`}
+                title={showArchived ? "Show Active" : "Show Archived"}
+              >
+                <Archive size={16} className="inline mr-1" />
+                {showArchived ? "Archived" : "Active"}
+              </button>
+
+              {/* Export/Import */}
+              <button
+                onClick={() => setIsExportModalOpen(true)}
+                className="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-800/50 text-gray-700 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+                title="Export/Import Notes (Ctrl+E)"
+              >
+                <Download size={20} />
+              </button>
+
+              {/* Theme Toggle */}
+              <ThemeToggle />
+
               {/* Search */}
               <div className="relative">
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-64 pl-10 pr-4 py-2 bg-gray-800/50 border border-gray-700/50 rounded-full text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent transition-all"
-                  placeholder="Search notes..."
+                  className="w-64 pl-10 pr-4 py-2 bg-white dark:bg-gray-900/50 border border-gray-300 dark:border-gray-700/50 rounded-full text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-transparent transition-all"
+                  placeholder="Search notes... (Ctrl+K)"
                 />
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400" size={18} />
               </div>
 
               {/* Logout */}
@@ -275,12 +445,12 @@ export default function Home() {
         {/* Notes Grid */}
         {filteredNotes.length === 0 ? (
           <div className="text-center py-20">
-            <p className="text-gray-400 text-lg mb-4">
+            <p className="text-gray-600 dark:text-gray-400 text-lg mb-4">
               {searchQuery ? "No notes found" : "No notes yet"}
             </p>
             {!searchQuery && (
               <p className="text-gray-500 text-sm">
-                Click the + button to create your first note
+                Click the + button or press <kbd className="px-2 py-1 bg-gray-200 dark:bg-gray-800 rounded text-xs font-mono">Ctrl+M</kbd> to create your first note
               </p>
             )}
           </div>
@@ -294,6 +464,8 @@ export default function Home() {
                 deleteNote={deleteNote}
                 toggleStar={toggleStar}
                 viewNote={viewNote}
+                isSelected={selectedNotes.has(note.id)}
+                onToggleSelect={toggleNoteSelection}
               />
             ))}
           </div>
@@ -303,10 +475,23 @@ export default function Home() {
       {/* Floating Action Button */}
       <button
         onClick={openModalForNewNote}
-        className="fixed bottom-8 right-8 p-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-full shadow-2xl hover:shadow-purple-500/50 hover:scale-110 transition-all duration-300 z-50"
+        className="fixed bottom-8 right-8 p-4 bg-gradient-to-r from-teal-500 to-cyan-500 text-white rounded-full shadow-2xl hover:shadow-teal-500/50 hover:scale-110 transition-all duration-300 z-50"
+        title="New Note (Ctrl+M)"
       >
         <Plus size={28} />
       </button>
+
+      {/* Bulk Actions Bar */}
+      {selectedNotes.size > 0 && (
+        <BulkActionsBar
+          selectedCount={selectedNotes.size}
+          onDelete={handleBulkDelete}
+          onArchive={handleBulkArchive}
+          onStar={handleBulkStar}
+          onExport={handleBulkExport}
+          onClear={() => setSelectedNotes(new Set())}
+        />
+      )}
 
       {/* Modals */}
       <NoteModal
@@ -327,6 +512,20 @@ export default function Home() {
         note={spotlightNote}
         closeSpotlight={() => setSpotlightNote(null)}
       />
+
+      <ExportImportModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        onExportJSON={handleExportJSON}
+        onExportMarkdown={handleExportMarkdown}
+        onImport={handleImport}
+      />
+
+      {/* Toast Notifications */}
+      <ToastContainer toasts={toasts} onClose={hideToast} />
+      
+      {/* Keyboard Shortcuts Help Modal */}
+      <KeyboardShortcutsModal isOpen={showHelpModal} onClose={() => setShowHelpModal(false)} />
     </div>
   );
 }
