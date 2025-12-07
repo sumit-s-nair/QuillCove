@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Plus, Search, LogOut, Menu, Download, Archive } from "lucide-react";
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
+import { arrayMove, SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import Background from "@/components/Background";
 import ModernNote from "@/components/ModernNote";
 import NoteModal from "@/components/NoteModal";
-import SpotlightNote from "@/components/SpotlightNote";
 import FilterTabs from "@/components/FilterTabs";
 import LoadingSkeleton from "@/components/LoadingSkeleton";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -13,6 +14,7 @@ import BulkActionsBar from "@/components/BulkActionsBar";
 import ExportImportModal from "@/components/ExportImportModal";
 import ToastContainer from "@/components/ToastContainer";
 import KeyboardShortcutsModal from "@/components/KeyboardShortcutsModal";
+import ConfirmDialog from "@/components/ConfirmDialog";
 import { auth, db } from "@/lib/firebase";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { signOut } from "firebase/auth";
@@ -29,12 +31,10 @@ export default function Home() {
   const [newTitle, setNewTitle] = useState("");
   const [newContent, setNewContent] = useState("");
   const [newLabels, setNewLabels] = useState<string[]>([]);
-  const [newChecklist, setNewChecklist] = useState<Array<{ id: string; text: string; completed: boolean }>>([]);
   const [isEditing, setIsEditing] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [showEditor, setShowEditor] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
-  const [spotlightNote, setSpotlightNote] = useState<Note | null>(null);
   const [availableLabels, setAvailableLabels] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState("All Notes");
@@ -43,17 +43,36 @@ export default function Home() {
   const [selectedNotes, setSelectedNotes] = useState<Set<string>>(new Set());
   const [showArchived, setShowArchived] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({ isOpen: false, title: '', message: '', onConfirm: () => {} });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
+  const [dragCurrent, setDragCurrent] = useState<{ x: number; y: number } | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const { showToast, toasts, hideToast } = useToast();
   const { toggleTheme } = useTheme();
+  
+  // Setup drag sensors for @dnd-kit
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    })
+  );
 
   const openModalForNewNote = useCallback(() => {
     setNewTitle("");
     setNewContent("");
     setNewLabels([]);
-    setNewChecklist([]);
     setIsEditing(false);
-    setIsModalOpen(true);
+    setEditId(null);
+    setShowEditor(true);
   }, []);
 
   useEffect(() => {
@@ -95,14 +114,14 @@ export default function Home() {
     { key: 'm', ctrl: true, callback: openModalForNewNote },
     { key: 'k', ctrl: true, callback: () => document.querySelector<HTMLInputElement>('input[placeholder="Search notes..."]')?.focus() },
     { key: 'Escape', callback: () => {
-      setIsModalOpen(false);
-      setSpotlightNote(null);
+      setShowEditor(false);
       setIsExportModalOpen(false);
       setShowHelpModal(false);
       setSelectedNotes(new Set());
     }},
     { key: 'a', ctrl: true, callback: () => {
-      const filtered = notes.filter(n => !n.archived);
+      // Select all depending on current archive view
+      const filtered = notes.filter(n => n.archived === showArchived);
       if (filtered.length > 0) {
         setSelectedNotes(new Set(filtered.map(n => n.id)));
         showToast("All notes selected", "info");
@@ -148,7 +167,6 @@ export default function Home() {
           content: newContent,
           starred: false,
           labels: newLabels,
-          checklist: newChecklist,
           archived: false,
           createdAt: Date.now(),
           updatedAt: Date.now(),
@@ -157,18 +175,27 @@ export default function Home() {
       }
       setNotes(updatedNotes);
       await saveUserData(updatedNotes, availableLabels);
-      setIsModalOpen(false);
       setNewTitle("");
       setNewContent("");
       setNewLabels([]);
+      setShowEditor(false);
     }
-  }, [newTitle, newContent, newLabels, newChecklist, isEditing, editId, notes, availableLabels, saveUserData]);
+  }, [newTitle, newContent, newLabels, isEditing, editId, notes, availableLabels, saveUserData]);
 
   const deleteNote = useCallback(async (id: string) => {
-    const updatedNotes = notes.filter((note) => note.id !== id);
-    setNotes(updatedNotes);
-    await saveUserData(updatedNotes, availableLabels);
-  }, [notes, availableLabels, saveUserData]);
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Delete Note',
+      message: 'Are you sure you want to delete this note? This action cannot be undone.',
+      onConfirm: async () => {
+        const updatedNotes = notes.filter((note) => note.id !== id);
+        setNotes(updatedNotes);
+        await saveUserData(updatedNotes, availableLabels);
+        showToast('Note deleted', 'success');
+        setConfirmDialog({ isOpen: false, title: '', message: '', onConfirm: () => {} });
+      },
+    });
+  }, [notes, availableLabels, saveUserData, showToast]);
 
   const editNote = useCallback((id: string) => {
     const note = notes.find((note) => note.id === id);
@@ -178,12 +205,18 @@ export default function Home() {
       setNewLabels(note.labels);
       setIsEditing(true);
       setEditId(id);
-      setIsModalOpen(true);
+      setShowEditor(true);
     }
   }, [notes]);
 
   const viewNote = useCallback((note: Note) => {
-    setSpotlightNote(note);
+    // Open note in split-screen editor instead of spotlight
+    setNewTitle(note.title);
+    setNewContent(note.content);
+    setNewLabels(note.labels);
+    setIsEditing(true);
+    setEditId(note.id);
+    setShowEditor(true);
   }, []);
 
   const toggleStar = useCallback(async (id: string) => {
@@ -208,6 +241,11 @@ export default function Home() {
     await saveUserData(notes, updatedLabels);
   }, [availableLabels, newLabels, notes, saveUserData]);
 
+  const removeLabel = useCallback((label: string) => {
+    setNewLabels(newLabels.filter((l) => l !== label));
+  }, [newLabels]);
+
+  // Delete label function (exposed for future label management UI)
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const deleteLabel = useCallback(async (label: string) => {
     const updatedLabels = availableLabels.filter((l) => l !== label);
@@ -232,7 +270,6 @@ export default function Home() {
   }, [router]);
 
   // Archive/Unarchive note
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const toggleArchive = useCallback(async (id: string) => {
     const updatedNotes = notes.map((note) =>
       note.id === id ? { ...note, archived: !note.archived } : note
@@ -274,11 +311,19 @@ export default function Home() {
 
   // Bulk operations
   const handleBulkDelete = useCallback(async () => {
-    const updatedNotes = notes.filter(n => !selectedNotes.has(n.id));
-    setNotes(updatedNotes);
-    await saveUserData(updatedNotes, availableLabels);
-    showToast(`Deleted ${selectedNotes.size} notes`, "success");
-    setSelectedNotes(new Set());
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Delete Multiple Notes',
+      message: `Are you sure you want to delete ${selectedNotes.size} note(s)? This action cannot be undone.`,
+      onConfirm: async () => {
+        const updatedNotes = notes.filter(n => !selectedNotes.has(n.id));
+        setNotes(updatedNotes);
+        await saveUserData(updatedNotes, availableLabels);
+        showToast(`Deleted ${selectedNotes.size} notes`, "success");
+        setSelectedNotes(new Set());
+        setConfirmDialog({ isOpen: false, title: '', message: '', onConfirm: () => {} });
+      },
+    });
   }, [notes, selectedNotes, availableLabels, saveUserData, showToast]);
 
   const handleBulkArchive = useCallback(async () => {
@@ -323,6 +368,98 @@ export default function Home() {
     });
   }, []);
 
+  // Drag-and-drop handler for reordering
+  const handleDragEnd = useCallback(async (event: DragEndEvent) => {
+    const { active, over } = event;
+    
+    if (over && active.id !== over.id) {
+      setNotes((items) => {
+        const oldIndex = items.findIndex((item) => item.id === active.id);
+        const newIndex = items.findIndex((item) => item.id === over.id);
+        const reorderedNotes = arrayMove(items, oldIndex, newIndex);
+        
+        // Save to Firebase
+        saveUserData(reorderedNotes, availableLabels);
+        return reorderedNotes;
+      });
+      showToast('Notes reordered', 'success');
+    }
+  }, [availableLabels, saveUserData, showToast]);
+
+  // Drag-to-select functionality
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    // Only start drag selection if not clicking on a note or button
+    const target = e.target as HTMLElement;
+    if (target.closest('.note-card') || target.closest('button')) return;
+    
+    setIsDragging(true);
+    setDragStart({ x: e.clientX, y: e.clientY });
+    setDragCurrent({ x: e.clientX, y: e.clientY });
+  }, []);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!isDragging || !dragStart) return;
+    
+    setDragCurrent({ x: e.clientX, y: e.clientY });
+    
+    // Calculate selection box
+    const box = {
+      left: Math.min(dragStart.x, e.clientX),
+      right: Math.max(dragStart.x, e.clientX),
+      top: Math.min(dragStart.y, e.clientY),
+      bottom: Math.max(dragStart.y, e.clientY),
+    };
+    
+    // Check which notes intersect with the selection box
+    const noteElements = containerRef.current?.querySelectorAll('.note-card');
+    const selected = new Set<string>();
+    
+    noteElements?.forEach((el) => {
+      const rect = el.getBoundingClientRect();
+      const noteId = el.getAttribute('data-note-id');
+      
+      if (
+        noteId &&
+        rect.left < box.right &&
+        rect.right > box.left &&
+        rect.top < box.bottom &&
+        rect.bottom > box.top
+      ) {
+        selected.add(noteId);
+      }
+    });
+    
+    setSelectedNotes(selected);
+  }, [isDragging, dragStart]);
+
+  const handleMouseUp = useCallback(() => {
+    setIsDragging(false);
+    setDragStart(null);
+    setDragCurrent(null);
+  }, []);
+
+  // Selection box style
+  const selectionBoxStyle = useMemo(() => {
+    if (!isDragging || !dragStart || !dragCurrent) return {};
+    
+    const left = Math.min(dragStart.x, dragCurrent.x);
+    const top = Math.min(dragStart.y, dragCurrent.y);
+    const width = Math.abs(dragCurrent.x - dragStart.x);
+    const height = Math.abs(dragCurrent.y - dragStart.y);
+    
+    return {
+      position: 'fixed' as const,
+      left: `${left}px`,
+      top: `${top}px`,
+      width: `${width}px`,
+      height: `${height}px`,
+      border: '2px dashed #14b8a6',
+      background: 'rgba(20, 184, 166, 0.1)',
+      pointerEvents: 'none' as const,
+      zIndex: 50,
+    };
+  }, [isDragging, dragStart, dragCurrent]);
+
   // Filtered notes based on search and active filter
   const filteredNotes = useMemo(() => {
     let filtered = notes.filter(
@@ -355,7 +492,7 @@ export default function Home() {
   }
 
   return (
-    <div className="relative min-h-screen bg-gray-50 dark:bg-gray-950">
+    <div className="relative min-h-screen bg-gray-50 dark:bg-black">
       <Background />
       
       {/* Header */}
@@ -430,44 +567,97 @@ export default function Home() {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-6 py-8">
-        {/* Filter Tabs */}
-        <div className="mb-8">
-          <FilterTabs
-            activeFilter={activeFilter}
-            setActiveFilter={setActiveFilter}
-            availableLabels={availableLabels}
-            noteCount={notes.length}
-            starredCount={starredCount}
-          />
+      <main className="flex h-[calc(100vh-80px)] overflow-hidden">
+        {/* Left Sidebar - Notes List */}
+        <div className={`${showEditor ? 'w-96 border-r border-gray-800' : 'w-full max-w-7xl mx-auto'}  flex flex-col overflow-hidden transition-all duration-300`}>
+          {/* Filter Tabs */}
+          <div className="py-6 border-b border-gray-800">
+            <FilterTabs
+              activeFilter={activeFilter}
+              setActiveFilter={setActiveFilter}
+              availableLabels={availableLabels}
+              noteCount={notes.filter(n => !n.archived).length}
+              starredCount={starredCount}
+            />
+          </div>
+
+          {/* Notes List */}
+          <div 
+            ref={containerRef}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            className="flex-1 overflow-y-auto p-4"
+          >
+            {filteredNotes.length === 0 ? (
+              <div className="text-center py-20">
+                <p className="text-gray-600 dark:text-gray-400 text-lg mb-4">
+                  {searchQuery ? "No notes found" : "No notes yet"}
+                </p>
+                {!searchQuery && (
+                  <p className="text-gray-500 text-sm">
+                    Click the + button or press <kbd className="px-2 py-1 bg-gray-200 dark:bg-gray-800 rounded text-xs font-mono">Ctrl+M</kbd> to create your first note
+                  </p>
+                )}
+              </div>
+            ) : (
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext
+                  items={filteredNotes.map(note => note.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <div className="space-y-2 animate-fade-in">
+                    {filteredNotes.map((note) => (
+                      <ModernNote
+                        key={note.id}
+                        note={note}
+                        editNote={editNote}
+                        deleteNote={deleteNote}
+                        toggleStar={toggleStar}
+                        viewNote={viewNote}
+                        isSelected={selectedNotes.has(note.id)}
+                        onToggleSelect={toggleNoteSelection}
+                        toggleArchive={toggleArchive}
+                      />
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
+            )}
+            
+            {/* Drag selection box */}
+            {isDragging && <div style={selectionBoxStyle} />}
+          </div>
         </div>
 
-        {/* Notes Grid */}
-        {filteredNotes.length === 0 ? (
-          <div className="text-center py-20">
-            <p className="text-gray-600 dark:text-gray-400 text-lg mb-4">
-              {searchQuery ? "No notes found" : "No notes yet"}
-            </p>
-            {!searchQuery && (
-              <p className="text-gray-500 text-sm">
-                Click the + button or press <kbd className="px-2 py-1 bg-gray-200 dark:bg-gray-800 rounded text-xs font-mono">Ctrl+M</kbd> to create your first note
-              </p>
-            )}
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 animate-fade-in">
-            {filteredNotes.map((note) => (
-              <ModernNote
-                key={note.id}
-                note={note}
-                editNote={editNote}
-                deleteNote={deleteNote}
-                toggleStar={toggleStar}
-                viewNote={viewNote}
-                isSelected={selectedNotes.has(note.id)}
-                onToggleSelect={toggleNoteSelection}
-              />
-            ))}
+        {/* Right Panel - Editor */}
+        {showEditor && (
+          <div className="flex-1 flex overflow-hidden">
+            <NoteModal
+              isOpen={true}
+              isEditing={isEditing}
+              newTitle={newTitle}
+              newContent={newContent}
+              newLabels={newLabels}
+              availableLabels={availableLabels}
+              setNewTitle={setNewTitle}
+              setNewContent={setNewContent}
+              addLabel={addLabel}
+              removeLabel={removeLabel}
+              addNote={addNote}
+              closeModal={() => {
+                setShowEditor(false);
+                setNewTitle("");
+                setNewContent("");
+                setNewLabels([]);
+                setIsEditing(false);
+                setEditId(null);
+              }}
+            />
           </div>
         )}
       </main>
@@ -494,25 +684,6 @@ export default function Home() {
       )}
 
       {/* Modals */}
-      <NoteModal
-        isOpen={isModalOpen}
-        isEditing={isEditing}
-        newTitle={newTitle}
-        newContent={newContent}
-        newLabels={newLabels}
-        availableLabels={availableLabels}
-        setNewTitle={setNewTitle}
-        setNewContent={setNewContent}
-        addLabel={addLabel}
-        addNote={addNote}
-        closeModal={() => setIsModalOpen(false)}
-      />
-
-      <SpotlightNote
-        note={spotlightNote}
-        closeSpotlight={() => setSpotlightNote(null)}
-      />
-
       <ExportImportModal
         isOpen={isExportModalOpen}
         onClose={() => setIsExportModalOpen(false)}
@@ -526,6 +697,18 @@ export default function Home() {
       
       {/* Keyboard Shortcuts Help Modal */}
       <KeyboardShortcutsModal isOpen={showHelpModal} onClose={() => setShowHelpModal(false)} />
+      
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+        onConfirm={confirmDialog.onConfirm}
+        onCancel={() => setConfirmDialog({ isOpen: false, title: '', message: '', onConfirm: () => {} })}
+      />
     </div>
   );
 }

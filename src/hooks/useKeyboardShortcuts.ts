@@ -34,7 +34,11 @@ export function useKeyboardShortcuts(shortcuts: KeyboardShortcut[]) {
 
       shortcuts.forEach((shortcut) => {
         // Skip if in input field unless explicitly enabled
-        if (isInputField && !shortcut.enableInInput) {
+        // Exception: Escape and Ctrl+S should always work
+        const isGlobalShortcut = shortcut.key.toLowerCase() === 'escape' || 
+                                 (shortcut.ctrl && shortcut.key.toLowerCase() === 's');
+        
+        if (isInputField && !shortcut.enableInInput && !isGlobalShortcut) {
           return;
         }
 
@@ -53,7 +57,8 @@ export function useKeyboardShortcuts(shortcuts: KeyboardShortcut[]) {
       });
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    // Attach to document instead of window for better coverage
+    document.addEventListener('keydown', handleKeyDown, true);
+    return () => document.removeEventListener('keydown', handleKeyDown, true);
   }, [shortcuts]);
 }

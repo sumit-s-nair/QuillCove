@@ -1,6 +1,6 @@
 {
   "name": "quill-cove",
-  "version": "1.2.0",
+  "version": "2.0.1",
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
@@ -18,6 +18,8 @@
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
     "react-icons": "^5.4.0",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
     "uuid": "^11.0.5"
   },
   "devDependencies": {

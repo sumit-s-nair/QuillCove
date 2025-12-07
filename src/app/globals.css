@@ -7,6 +7,19 @@ body {
   font-family: "Montserrat", sans-serif;
 }
 
+/* Ensure dark theme uses true black background and teal-friendly text */
+html.dark body {
+  background-color: #000000;
+  color: #e6fff9; /* light teal-ish text */
+}
+
+html.light body {
+  background-color: #f8fafc;
+  color: #0f172a;
+}
+
+
+
 /* Minimal animations only */
 @keyframes slideIn {
   from {
@@ -17,6 +30,31 @@ body {
     transform: translateX(0);
     opacity: 1;
   }
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background-color: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: #14b8a6;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: #0d9488;
+}
+
+/* Firefox scrollbar */
+* {
+  scrollbar-color: #14b8a6 transparent;
+  scrollbar-width: thin;
 }
 
 @keyframes fadeIn {
